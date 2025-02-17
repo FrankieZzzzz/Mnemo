@@ -1,17 +1,29 @@
 import React from 'react';
 import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {wordList} from '../utils/sampleData';
+import {words} from '../utils/sampleData';
+import {useWordSession} from '../hooks/useWordSession';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
+  const {wordProgress} = useWordSession(words); // 获取单词进度
+
+  // 计算已学习的单词数量（完成阶段2的单词）
+  const learnedWords = wordProgress.filter(p => p.level === 2).length;
+
+  const wordListData = {
+    // 改名以避免与导入的 wordList 冲突
+    title: '核心词汇',
+    totalWords: words.length,
+    learnedWords: learnedWords,
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.wordListCard}>
-        <Text style={styles.title}>{wordList.title}</Text>
+        <Text style={styles.title}>{wordListData.title}</Text>
         <Text style={styles.progress}>
-          {wordList.learnedWords} / {wordList.totalWords} words
+          {wordListData.learnedWords} / {wordListData.totalWords} words
         </Text>
         <TouchableOpacity
           style={styles.learnButton}
@@ -24,9 +36,6 @@ const HomeScreen = () => {
 };
 
 // ... styles 保持不变 ...
-
-export default HomeScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

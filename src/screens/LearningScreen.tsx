@@ -17,15 +17,17 @@ const LearningScreen = () => {
   const {
     wordProgress,
     getNextLearningBatch,
-    getStage2Words, // 添加这个
+    getStageWords,
     getReviewWords,
     updateWordProgress,
-    canEnterStage2, // 添加这个
+    isStageComplete,
     isSessionComplete,
+    currentStage,
+    setCurrentStage,
   } = useWordSession(words);
 
   // 基本状态
-  const [currentStage, setCurrentStage] = useState(1);
+  //   const [currentStage, setCurrentStage] = useState(1);
   const [currentWords, setCurrentWords] = useState<Word[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [showingTest, setShowingTest] = useState(false);
@@ -34,14 +36,12 @@ const LearningScreen = () => {
     'CN_TO_EN',
   );
   const [wrongAnswer, setWrongAnswer] = useState<string | null>(null);
-  const currentWord = currentWords[currentWordIndex];
 
   // 初始化学习
   useEffect(() => {
     const initialBatch = getNextLearningBatch();
     setCurrentWords(initialBatch);
   }, []);
-
   const moveToNextBatch = () => {
     const nextBatch = getNextLearningBatch();
     if (nextBatch.length > 0) {
@@ -52,7 +52,6 @@ const LearningScreen = () => {
     }
     return false;
   };
-
   const handleAnswer = (answer: string) => {
     const currentWord = currentWords[currentWordIndex];
     if (!currentWord) return;
@@ -62,10 +61,8 @@ const LearningScreen = () => {
       (testDirection === 'CN_TO_EN' ? currentWord.word : currentWord.meaning);
 
     updateWordProgress(currentWord.id, isCorrect, currentStage);
-
     if (!isCorrect) {
-      if (currentStage === 2) {
-        // 阶段2错误直接显示学习界面
+      if (currentStage >= 2) {
         setShowingTest(false);
       } else {
         setWrongAnswer(answer);
@@ -79,40 +76,33 @@ const LearningScreen = () => {
         setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
       } else {
         // 当前批次测试完成
-        if (currentStage === 1) {
-          // 阶段1逻辑
-          const reviewWords = getReviewWords();
-          if (reviewWords.length > 0) {
-            setCurrentWords(reviewWords);
-            setCurrentWordIndex(0);
-            setShowingTest(true);
-          } else {
-            if (canEnterStage2()) {
-              // 进入阶段2
-              setCurrentStage(2);
-              const stage2Words = getStage2Words();
-              setCurrentWords(stage2Words);
-              setCurrentWordIndex(0);
-              setShowingTest(true);
-            } else {
-              // 继续阶段1
-              const nextBatch = getNextLearningBatch();
-              if (nextBatch.length > 0) {
-                setCurrentWords(nextBatch);
-                setCurrentWordIndex(0);
-                setShowingTest(false);
-              }
-            }
-          }
+        const reviewWords = getReviewWords();
+
+        if (reviewWords.length > 0) {
+          setCurrentWords(reviewWords);
+          setCurrentWordIndex(0);
+          setShowingTest(true);
+          setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+        } else if (currentStage === 3 && isSessionComplete()) {
+          // 如果是阶段3且所有单词都完成，结束会话
+          navigation.navigate('SessionComplete');
+        } else if (currentStage < 3 && isStageComplete(currentStage)) {
+          // 当前阶段完成，进入下一阶段
+          const nextStage = currentStage + 1;
+          setCurrentStage(nextStage);
+          const nextStageWords = getStageWords(nextStage);
+          setCurrentWords(nextStageWords);
+          setCurrentWordIndex(0);
+          setShowingTest(true);
+          setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
         } else {
-          // 阶段2逻辑
-          const reviewWords = getReviewWords();
-          if (reviewWords.length > 0) {
-            setCurrentWords(reviewWords);
+          // 继续当前阶段的其他单词
+          const remainingWords = getStageWords(currentStage);
+          if (remainingWords.length > 0) {
+            setCurrentWords(remainingWords);
             setCurrentWordIndex(0);
             setShowingTest(true);
-          } else if (isSessionComplete()) {
-            navigation.navigate('SessionComplete');
+            setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
           }
         }
       }
@@ -121,23 +111,24 @@ const LearningScreen = () => {
   //handleNext 函数
   const handleNext = () => {
     if (showingAnswer) {
-      // 处理错误答案后的逻辑
       setShowingAnswer(false);
-
       if (currentWordIndex < currentWords.length - 1) {
-        // 继续测试当前批次的下一个单词
         setCurrentWordIndex(prev => prev + 1);
         setShowingTest(true);
         setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
       } else {
-        // 检查是否有需要复习的单词
         const reviewWords = getReviewWords();
         if (reviewWords.length > 0) {
           setCurrentWords(reviewWords);
           setCurrentWordIndex(0);
           setShowingTest(true);
+        } else if (currentStage < 3 && canEnterNextStage(currentStage + 1)) {
+          setCurrentStage(prev => prev + 1);
+          const nextStageWords = getStageWords(currentStage + 1);
+          setCurrentWords(nextStageWords);
+          setCurrentWordIndex(0);
+          setShowingTest(true);
         } else {
-          // 获取新的未学习单词
           const nextBatch = getNextLearningBatch();
           if (nextBatch.length > 0) {
             setCurrentWords(nextBatch);
@@ -164,17 +155,16 @@ const LearningScreen = () => {
       }
     }
   };
-
+  const currentWord = currentWords[currentWordIndex];
   // 进度条计算
   const getProgress = () => {
-    const totalProgress = words.length * 4;
-    const currentProgress = wordProgress.reduce(
-      (sum, progress) => sum + progress.level,
-      0,
-    );
+    const totalProgress = words.length * 3; // 总进度为单词数量 * 3（三个阶段）
+    const currentProgress = wordProgress.reduce((sum, progress) => {
+      // 每完成一个阶段加一分
+      return sum + progress.level;
+    }, 0);
     return (currentProgress / totalProgress) * 100;
   };
-
   // 添加空状态处理
   if (!currentWord || currentWords.length === 0) {
     return (
@@ -212,7 +202,6 @@ const LearningScreen = () => {
       </SafeAreaView>
     );
   }
-
   if (!showingTest) {
     return (
       <SafeAreaView style={styles.container}>
@@ -228,7 +217,6 @@ const LearningScreen = () => {
       </SafeAreaView>
     );
   }
-
   // 测试界面
   const question =
     testDirection === 'CN_TO_EN' ? currentWord.meaning : currentWord.word;

@@ -11,7 +11,7 @@ export const useWordSession = (allWords: Word[]) => {
   const [wordProgress, setWordProgress] = useState<WordProgress[]>(
     allWords.map(word => ({
       id: word.id,
-      level: 0,
+      level: 0, // 0: 未学习, 1: 阶段1完成, 2: 阶段2完成, 3: 阶段3完成
       needsReview: false,
     })),
   );
@@ -51,7 +51,7 @@ export const useWordSession = (allWords: Word[]) => {
             if (isCorrect) {
               return {
                 ...progress,
-                level: stage === 1 ? 1 : 2, // 根据阶段设置不同的level
+                level: stage, // 直接设置为当前阶段数
                 needsReview: false,
               };
             } else {
@@ -68,25 +68,37 @@ export const useWordSession = (allWords: Word[]) => {
     [],
   );
 
-  // 检查是否可以进入阶段2
-  const canEnterStage2 = useCallback(() => {
-    return (
-      wordProgress.every(p => p.level >= 1) && currentIndex >= allWords.length
-    );
-  }, [wordProgress, currentIndex, allWords.length]);
+  // 获取特定阶段需要测试的单词
+  const getStageWords = useCallback(
+    (stage: number) => {
+      return allWords.filter(word => {
+        const progress = wordProgress.find(p => p.id === word.id);
+        return progress?.level < stage; // 获取level小于当前阶段的单词
+      });
+    },
+    [allWords, wordProgress],
+  );
 
-  // 检查是否所有单词都完成
+  // 检查是否所有单词都完成当前阶段
+  const isStageComplete = useCallback(
+    (stage: number) => {
+      return wordProgress.every(p => p.level >= stage);
+    },
+    [wordProgress],
+  );
+
+  // 检查是否整个会话完成
   const isSessionComplete = useCallback(() => {
-    return wordProgress.every(p => p.level === 2);
+    return wordProgress.every(p => p.level === 3);
   }, [wordProgress]);
 
   return {
     wordProgress,
     getNextLearningBatch,
-    getStage2Words, // 添加这个
+    getStageWords,
     getReviewWords,
     updateWordProgress,
-    canEnterStage2, // 添加这个
+    isStageComplete, // 添加这个
     isSessionComplete,
     currentStage,
     setCurrentStage,
