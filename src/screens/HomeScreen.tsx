@@ -3,6 +3,7 @@ import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {words} from '../utils/sampleData';
 import {useWordSession} from '../hooks/useWordSession';
+import {COLORS} from '../constants/colors';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -40,35 +41,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   wordListCard: {
     padding: 20,
     borderRadius: 12,
-    backgroundColor: '#f5f5f5',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: COLORS.surface,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: COLORS.text,
     marginBottom: 8,
   },
   progress: {
     fontSize: 14,
-    color: '#666',
+    color: COLORS.text,
+    opacity: 0.7,
     marginBottom: 16,
   },
   learnButton: {
-    backgroundColor: '#333',
+    backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.background,
     fontSize: 16,
     fontWeight: '500',
   },

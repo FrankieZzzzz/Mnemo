@@ -31,13 +31,13 @@ export const words: Word[] = [
     partOfSpeech: 'n.',
     learned: false,
   },
-  //   {
-  //     id: '4',
-  //     word: 'dog',
-  //     meaning: '狗',
-  //     partOfSpeech: 'n.',
-  //     learned: false,
-  //   },
+  {
+    id: '4',
+    word: 'dog',
+    meaning: '狗',
+    partOfSpeech: 'n.',
+    learned: false,
+  },
   //   {
   //     id: '5',
   //     word: 'food',

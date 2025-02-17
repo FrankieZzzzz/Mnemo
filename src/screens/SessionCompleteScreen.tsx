@@ -1,4 +1,5 @@
 import React from 'react';
+import {COLORS} from '../constants/colors';
 import {
   View,
   Text,
@@ -30,7 +31,7 @@ const SessionCompleteScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -41,24 +42,37 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
+    color: COLORS.text,
     marginBottom: 16,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
-    color: '#666',
-    marginBottom: 40,
+    color: COLORS.text,
+    opacity: 0.7,
+    marginBottom: 48,
+    textAlign: 'center',
   },
   button: {
-    backgroundColor: '#333',
+    backgroundColor: COLORS.primary,
     padding: 16,
-    borderRadius: 8,
-    width: '80%',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 280,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-    fontWeight: '500',
+    color: COLORS.background,
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
 

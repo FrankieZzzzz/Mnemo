@@ -11,9 +11,11 @@ import {words} from '../utils/sampleData';
 import {useWordSession} from '../hooks/useWordSession';
 import {generateOptions} from '../utils/testUtils';
 import {Word} from '../types';
+import {COLORS} from '../constants/colors';
 
 const LearningScreen = () => {
   const navigation = useNavigation();
+
   const {
     wordProgress,
     getNextLearningBatch,
@@ -27,7 +29,6 @@ const LearningScreen = () => {
   } = useWordSession(words);
 
   // 基本状态
-  //   const [currentStage, setCurrentStage] = useState(1);
   const [currentWords, setCurrentWords] = useState<Word[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [showingTest, setShowingTest] = useState(false);
@@ -36,12 +37,16 @@ const LearningScreen = () => {
     'CN_TO_EN',
   );
   const [wrongAnswer, setWrongAnswer] = useState<string | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const currentWord = currentWords[currentWordIndex];
+  const [currentOptions, setCurrentOptions] = useState<string[]>([]);
 
   // 初始化学习
   useEffect(() => {
     const initialBatch = getNextLearningBatch();
     setCurrentWords(initialBatch);
   }, []);
+
   const moveToNextBatch = () => {
     const nextBatch = getNextLearningBatch();
     if (nextBatch.length > 0) {
@@ -52,93 +57,88 @@ const LearningScreen = () => {
     }
     return false;
   };
+
   const handleAnswer = (answer: string) => {
-    const currentWord = currentWords[currentWordIndex];
     if (!currentWord) return;
 
-    const isCorrect =
-      answer ===
-      (testDirection === 'CN_TO_EN' ? currentWord.word : currentWord.meaning);
+    setSelectedAnswer(answer);
+
+    const correctAnswer =
+      testDirection === 'CN_TO_EN' ? currentWord.word : currentWord.meaning;
+    const isCorrect = answer === correctAnswer;
 
     updateWordProgress(currentWord.id, isCorrect, currentStage);
+
     if (!isCorrect) {
       if (currentStage >= 2) {
-        setShowingTest(false);
+        // 阶段2和3的错误处理
+        setTimeout(() => {
+          setWrongAnswer(answer); // 添加这行
+          setShowingAnswer(true); // 修改：显示错误答案页面
+          setShowingTest(false);
+          setSelectedAnswer(null);
+          setCurrentOptions([]);
+        }, 1000);
       } else {
+        // 阶段1的错误处理
         setWrongAnswer(answer);
-        setShowingAnswer(true);
-        setShowingTest(false);
+        setTimeout(() => {
+          setShowingAnswer(true);
+          setShowingTest(false);
+          setSelectedAnswer(null);
+          setCurrentOptions([]);
+        }, 1000);
       }
     } else {
-      if (currentWordIndex < currentWords.length - 1) {
-        // 继续测试当前批次的下一个单词
-        setCurrentWordIndex(prev => prev + 1);
-        setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
-      } else {
-        // 当前批次测试完成
-        const reviewWords = getReviewWords();
-
-        if (reviewWords.length > 0) {
-          setCurrentWords(reviewWords);
-          setCurrentWordIndex(0);
-          setShowingTest(true);
-          setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
-        } else if (currentStage === 3 && isSessionComplete()) {
-          // 如果是阶段3且所有单词都完成，结束会话
-          navigation.navigate('SessionComplete');
-        } else if (currentStage < 3 && isStageComplete(currentStage)) {
-          // 当前阶段完成，进入下一阶段
-          const nextStage = currentStage + 1;
-          setCurrentStage(nextStage);
-          const nextStageWords = getStageWords(nextStage);
-          setCurrentWords(nextStageWords);
-          setCurrentWordIndex(0);
-          setShowingTest(true);
+      // 答对了
+      setTimeout(() => {
+        setSelectedAnswer(null);
+        setCurrentOptions([]);
+        if (currentWordIndex < currentWords.length - 1) {
+          // 继续测试下一个单词
+          setCurrentWordIndex(prev => prev + 1);
           setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
         } else {
-          // 继续当前阶段的其他单词
-          const remainingWords = getStageWords(currentStage);
-          if (remainingWords.length > 0) {
-            setCurrentWords(remainingWords);
+          // 检查是否需要继续学习新单词
+          const nextBatch = getNextLearningBatch();
+          if (nextBatch.length > 0) {
+            // 有新单词要学习
+            setCurrentWords(nextBatch);
             setCurrentWordIndex(0);
-            setShowingTest(true);
-            setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+            setShowingTest(false); // 切换到学习模式
+          } else {
+            // 没有新单词，检查复习和阶段转换
+            const reviewWords = getReviewWords();
+            if (reviewWords.length > 0) {
+              setCurrentWords(reviewWords);
+              setCurrentWordIndex(0);
+              setShowingTest(true);
+              setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+            } else if (currentStage === 3 && isSessionComplete()) {
+              navigation.navigate('SessionComplete');
+            } else if (currentStage < 3 && isStageComplete(currentStage)) {
+              const nextStage = currentStage + 1;
+              setCurrentStage(nextStage);
+              const nextStageWords = getStageWords(nextStage);
+              setCurrentWords(nextStageWords);
+              setCurrentWordIndex(0);
+              setShowingTest(true);
+              setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+            }
           }
         }
-      }
+      }, 1000);
     }
   };
+
   //handleNext 函数
   const handleNext = () => {
     if (showingAnswer) {
+      // 从错误答案页面返回测试
       setShowingAnswer(false);
-      if (currentWordIndex < currentWords.length - 1) {
-        setCurrentWordIndex(prev => prev + 1);
-        setShowingTest(true);
-        setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
-      } else {
-        const reviewWords = getReviewWords();
-        if (reviewWords.length > 0) {
-          setCurrentWords(reviewWords);
-          setCurrentWordIndex(0);
-          setShowingTest(true);
-        } else if (currentStage < 3 && canEnterNextStage(currentStage + 1)) {
-          setCurrentStage(prev => prev + 1);
-          const nextStageWords = getStageWords(currentStage + 1);
-          setCurrentWords(nextStageWords);
-          setCurrentWordIndex(0);
-          setShowingTest(true);
-        } else {
-          const nextBatch = getNextLearningBatch();
-          if (nextBatch.length > 0) {
-            setCurrentWords(nextBatch);
-            setCurrentWordIndex(0);
-            setShowingTest(false);
-          } else if (isSessionComplete()) {
-            navigation.navigate('SessionComplete');
-          }
-        }
-      }
+      setShowingTest(true);
+      setCurrentOptions([]);
+      setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
       return;
     }
 
@@ -152,10 +152,11 @@ const LearningScreen = () => {
         setCurrentWordIndex(0);
         setShowingTest(true);
         setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+        setCurrentOptions([]);
       }
     }
   };
-  const currentWord = currentWords[currentWordIndex];
+
   // 进度条计算
   const getProgress = () => {
     const totalProgress = words.length * 3; // 总进度为单词数量 * 3（三个阶段）
@@ -165,6 +166,7 @@ const LearningScreen = () => {
     }, 0);
     return (currentProgress / totalProgress) * 100;
   };
+
   // 添加空状态处理
   if (!currentWord || currentWords.length === 0) {
     return (
@@ -180,6 +182,7 @@ const LearningScreen = () => {
       </SafeAreaView>
     );
   }
+
   if (showingAnswer) {
     return (
       <SafeAreaView style={styles.container}>
@@ -202,6 +205,7 @@ const LearningScreen = () => {
       </SafeAreaView>
     );
   }
+
   if (!showingTest) {
     return (
       <SafeAreaView style={styles.container}>
@@ -217,35 +221,62 @@ const LearningScreen = () => {
       </SafeAreaView>
     );
   }
-  // 测试界面
-  const question =
-    testDirection === 'CN_TO_EN' ? currentWord.meaning : currentWord.word;
-  const options = generateOptions(
-    testDirection === 'CN_TO_EN' ? currentWord.word : currentWord.meaning,
-    words,
-    testDirection === 'CN_TO_EN',
-  );
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.progressBar}>
-        <View style={[styles.progressFill, {width: `${getProgress()}%`}]} />
-      </View>
-      <View style={styles.contentContainer}>
-        <Text style={styles.question}>{question}</Text>
-        <View style={styles.optionsContainer}>
-          {options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.optionButton}
-              onPress={() => handleAnswer(option)}>
-              <Text style={styles.optionText}>{option}</Text>
-            </TouchableOpacity>
-          ))}
+  // 修改测试界面的选项渲染部分
+  if (showingTest) {
+    const question =
+      testDirection === 'CN_TO_EN' ? currentWord.meaning : currentWord.word;
+    const correctAnswer =
+      testDirection === 'CN_TO_EN' ? currentWord.word : currentWord.meaning;
+
+    // 只在没有当前选项时生成新选项
+    if (currentOptions.length === 0) {
+      const newOptions = generateOptions(
+        correctAnswer,
+        words,
+        testDirection === 'CN_TO_EN',
+      );
+      setCurrentOptions(newOptions);
+    }
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, {width: `${getProgress()}%`}]} />
         </View>
-      </View>
-    </SafeAreaView>
-  );
+        <View style={styles.contentContainer}>
+          <Text style={styles.question}>{question}</Text>
+          <View style={styles.optionsContainer}>
+            {currentOptions.map((option, index) => {
+              const isSelected = selectedAnswer === option;
+              const isCorrect = option === correctAnswer;
+
+              const buttonStyle = [
+                styles.optionButton,
+                selectedAnswer && {
+                  backgroundColor: isCorrect
+                    ? COLORS.success
+                    : isSelected
+                    ? COLORS.error
+                    : COLORS.surface,
+                },
+              ];
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={buttonStyle}
+                  onPress={() => handleAnswer(option)}
+                  disabled={selectedAnswer !== null}>
+                  <Text style={styles.optionText}>{option}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 };
 
 // 保持原有的 styles ...
@@ -253,7 +284,7 @@ const LearningScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   contentContainer: {
     flex: 1,
@@ -262,33 +293,37 @@ const styles = StyleSheet.create({
   },
   wordType: {
     fontSize: 16,
-    color: '#666',
+    color: COLORS.text,
+    opacity: 0.7,
     marginBottom: 8,
   },
   word: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: COLORS.text,
     marginBottom: 16,
   },
   meaning: {
     fontSize: 18,
+    color: COLORS.text,
     marginBottom: 32,
   },
   nextButton: {
-    backgroundColor: '#333',
+    backgroundColor: COLORS.primary,
     padding: 15,
     margin: 20,
     borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.background,
     fontSize: 16,
     fontWeight: '500',
   },
   question: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: COLORS.text,
     marginBottom: 32,
     textAlign: 'center',
   },
@@ -298,40 +333,45 @@ const styles = StyleSheet.create({
   optionButton: {
     padding: 15,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    backgroundColor: COLORS.surface,
   },
   optionText: {
     fontSize: 16,
     textAlign: 'center',
+    color: COLORS.text,
   },
   answerTitle: {
     fontSize: 14,
-    color: '#666',
+    color: COLORS.text,
+    opacity: 0.7,
     marginBottom: 8,
   },
   wrongAnswer: {
     fontSize: 20,
-    color: '#FF3B30',
+    color: COLORS.error,
     marginBottom: 24,
   },
   correctAnswerContainer: {
     marginTop: 24,
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
   },
   label: {
     fontSize: 14,
-    color: '#666',
+    color: COLORS.text,
+    opacity: 0.7,
     marginBottom: 4,
     marginTop: 16,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: COLORS.surface,
     width: '100%',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#34C759',
+    backgroundColor: COLORS.success,
   },
 });
 export default LearningScreen;
