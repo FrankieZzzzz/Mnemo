@@ -12,6 +12,9 @@ import {useWordSession} from '../hooks/useWordSession';
 import {generateOptions} from '../utils/testUtils';
 import {Word} from '../types';
 import {COLORS} from '../constants/colors';
+import WordProgressIndicator from '../components/WordProgressIndicator';
+
+import SpellingTest from '../components/SpellingTest';
 
 const LearningScreen = () => {
   const navigation = useNavigation();
@@ -21,11 +24,13 @@ const LearningScreen = () => {
     getNextLearningBatch,
     getStageWords,
     getReviewWords,
+    getSpellingWords,
     updateWordProgress,
     isStageComplete,
     isSessionComplete,
     currentStage,
     setCurrentStage,
+    getProgress: getSessionProgress,
   } = useWordSession(words);
 
   // 基本状态
@@ -40,6 +45,7 @@ const LearningScreen = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const currentWord = currentWords[currentWordIndex];
   const [currentOptions, setCurrentOptions] = useState<string[]>([]);
+  const [isSpellingMode, setIsSpellingMode] = useState(false);
 
   // 初始化学习
   useEffect(() => {
@@ -58,6 +64,8 @@ const LearningScreen = () => {
     return false;
   };
 
+  const [wrongWords, setWrongWords] = useState<Word[]>([]);
+
   const handleAnswer = (answer: string) => {
     if (!currentWord) return;
 
@@ -70,60 +78,73 @@ const LearningScreen = () => {
     updateWordProgress(currentWord.id, isCorrect, currentStage);
 
     if (!isCorrect) {
-      if (currentStage >= 2) {
-        // 阶段2和3的错误处理
-        setTimeout(() => {
-          setWrongAnswer(answer); // 添加这行
-          setShowingAnswer(true); // 修改：显示错误答案页面
-          setShowingTest(false);
-          setSelectedAnswer(null);
-          setCurrentOptions([]);
-        }, 1000);
-      } else {
-        // 阶段1的错误处理
+      // 错误处理
+      setTimeout(() => {
         setWrongAnswer(answer);
-        setTimeout(() => {
-          setShowingAnswer(true);
-          setShowingTest(false);
-          setSelectedAnswer(null);
-          setCurrentOptions([]);
-        }, 1000);
-      }
+        setShowingAnswer(true);
+        setShowingTest(false);
+        setSelectedAnswer(null);
+        setCurrentOptions([]);
+
+        // 将当前错误的单词添加到错误列表
+        if (!wrongWords.find(w => w.id === currentWord.id)) {
+          setWrongWords(prev => [...prev, currentWord]);
+        }
+      }, 1000);
     } else {
       // 答对了
       setTimeout(() => {
         setSelectedAnswer(null);
         setCurrentOptions([]);
+
         if (currentWordIndex < currentWords.length - 1) {
           // 继续测试下一个单词
           setCurrentWordIndex(prev => prev + 1);
           setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
         } else {
-          // 检查是否需要继续学习新单词
-          const nextBatch = getNextLearningBatch();
-          if (nextBatch.length > 0) {
-            // 有新单词要学习
-            setCurrentWords(nextBatch);
+          // 当前批次的所有单词都测试完了
+          if (wrongWords.length > 0) {
+            // 还有错误的单词需要测试
+            setCurrentWords(wrongWords);
+            setWrongWords([]); // 清空错误单词列表
             setCurrentWordIndex(0);
-            setShowingTest(false); // 切换到学习模式
+            setShowingTest(true);
+            setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+          } else if (currentStage === 3 && isStageComplete(currentStage)) {
+            // 第3阶段完成且没有错误单词，进入拼写测试阶段
+            const nextStage = 4;
+            setCurrentStage(nextStage);
+            const spellingWords = getSpellingWords();
+            setCurrentWords(spellingWords);
+            setCurrentWordIndex(0);
+            setIsSpellingMode(true);
+            setShowingTest(true);
+          } else if (currentStage === 4 && isSessionComplete()) {
+            navigation.navigate('SessionComplete');
           } else {
-            // 没有新单词，检查复习和阶段转换
-            const reviewWords = getReviewWords();
-            if (reviewWords.length > 0) {
-              setCurrentWords(reviewWords);
+            // 检查是否需要继续学习新单词
+            const nextBatch = getNextLearningBatch();
+            if (nextBatch.length > 0) {
+              // 有新单词要学习
+              setCurrentWords(nextBatch);
               setCurrentWordIndex(0);
-              setShowingTest(true);
-              setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
-            } else if (currentStage === 3 && isSessionComplete()) {
-              navigation.navigate('SessionComplete');
-            } else if (currentStage < 3 && isStageComplete(currentStage)) {
-              const nextStage = currentStage + 1;
-              setCurrentStage(nextStage);
-              const nextStageWords = getStageWords(nextStage);
-              setCurrentWords(nextStageWords);
-              setCurrentWordIndex(0);
-              setShowingTest(true);
-              setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+              setShowingTest(false);
+            } else {
+              const reviewWords = getReviewWords();
+              if (reviewWords.length > 0) {
+                setCurrentWords(reviewWords);
+                setCurrentWordIndex(0);
+                setShowingTest(true);
+                setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+              } else if (currentStage < 3 && isStageComplete(currentStage)) {
+                const nextStage = currentStage + 1;
+                setCurrentStage(nextStage);
+                const nextStageWords = getStageWords(nextStage);
+                setCurrentWords(nextStageWords);
+                setCurrentWordIndex(0);
+                setShowingTest(true);
+                setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
+              }
             }
           }
         }
@@ -134,10 +155,16 @@ const LearningScreen = () => {
   //handleNext 函数
   const handleNext = () => {
     if (showingAnswer) {
-      // 从错误答案页面返回测试
+      // 从错误答案页面返回测试，继续测试下一个单词
       setShowingAnswer(false);
       setShowingTest(true);
       setCurrentOptions([]);
+
+      // 如果不是最后一个单词，移动到下一个
+      if (currentWordIndex < currentWords.length - 1) {
+        setCurrentWordIndex(prev => prev + 1);
+      }
+
       setTestDirection(Math.random() > 0.5 ? 'CN_TO_EN' : 'EN_TO_CN');
       return;
     }
@@ -157,17 +184,23 @@ const LearningScreen = () => {
     }
   };
 
-  // 进度条计算
-  const getProgress = () => {
-    const totalProgress = words.length * 3; // 总进度为单词数量 * 3（三个阶段）
-    const currentProgress = wordProgress.reduce((sum, progress) => {
-      // 每完成一个阶段加一分
-      return sum + progress.level;
-    }, 0);
-    return (currentProgress / totalProgress) * 100;
+  // 添加拼写测试处理函数
+  const handleSpellingCorrect = () => {
+    updateWordProgress(currentWord.id, true, 4);
+    if (currentWordIndex < currentWords.length - 1) {
+      setCurrentWordIndex(prev => prev + 1);
+    } else if (isSessionComplete()) {
+      navigation.navigate('SessionComplete');
+    }
   };
 
-  // 添加空状态处理
+  const handleSpellingSkip = () => {
+    if (currentWordIndex < currentWords.length - 1) {
+      setCurrentWordIndex(prev => prev + 1);
+    }
+  };
+
+  // 修改渲染逻辑
   if (!currentWord || currentWords.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
@@ -222,6 +255,30 @@ const LearningScreen = () => {
     );
   }
 
+  // 添加拼写测试模式
+  if (isSpellingMode) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.progressBar}>
+          <View
+            style={[styles.progressFill, {width: `${getSessionProgress()}%`}]}
+          />
+        </View>
+        <SpellingTest
+          word={currentWord}
+          onCorrect={handleSpellingCorrect}
+          onSkip={handleSpellingSkip}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  const getCurrentWordLevel = () => {
+    if (!currentWord) return 0;
+    const progress = wordProgress.find(p => p.id === currentWord.id);
+    return progress ? progress.level : 0;
+  };
+
   // 修改测试界面的选项渲染部分
   if (showingTest) {
     const question =
@@ -242,8 +299,14 @@ const LearningScreen = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, {width: `${getProgress()}%`}]} />
+          <View
+            style={[styles.progressFill, {width: `${getSessionProgress()}%`}]}
+          />
         </View>
+        <View style={styles.indicatorContainer}>
+          <WordProgressIndicator level={getCurrentWordLevel()} />
+        </View>
+
         <View style={styles.contentContainer}>
           <Text style={styles.question}>{question}</Text>
           <View style={styles.optionsContainer}>
@@ -278,8 +341,6 @@ const LearningScreen = () => {
     );
   }
 };
-
-// 保持原有的 styles ...
 
 const styles = StyleSheet.create({
   container: {
@@ -372,6 +433,12 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.success,
+  },
+  indicatorContainer: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 1,
   },
 });
 export default LearningScreen;

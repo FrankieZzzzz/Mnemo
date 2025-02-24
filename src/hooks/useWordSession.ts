@@ -3,7 +3,7 @@ import {Word} from '../types';
 
 interface WordProgress {
   id: string;
-  level: number; // 0: 未学习, 1: 阶段1完成, 2: 阶段2完成
+  level: number; // 0: 未学习, 1: 阶段1完成, 2: 阶段2完成, 3: 阶段3完成, 4: 拼写阶段完成
   needsReview: boolean;
 }
 
@@ -11,13 +11,28 @@ export const useWordSession = (allWords: Word[]) => {
   const [wordProgress, setWordProgress] = useState<WordProgress[]>(
     allWords.map(word => ({
       id: word.id,
-      level: 0, // 0: 未学习, 1: 阶段1完成, 2: 阶段2完成, 3: 阶段3完成
+      level: 0,
       needsReview: false,
     })),
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentStage, setCurrentStage] = useState(1);
+  // 添加进度计算函数
+  const getProgress = useCallback(() => {
+    const totalWords = allWords.length;
+    const stage1Words = wordProgress.filter(p => p.level >= 1).length;
+    const stage2Words = wordProgress.filter(p => p.level >= 2).length;
+    const stage3Words = wordProgress.filter(p => p.level >= 3).length;
+    const stage4Words = wordProgress.filter(p => p.level >= 4).length;
+
+    // 计算总进度
+    const totalProgress = totalWords * 4; // 4个阶段
+    const currentProgress =
+      stage1Words + stage2Words + stage3Words + stage4Words;
+
+    return (currentProgress / totalProgress) * 100;
+  }, [allWords.length, wordProgress]);
 
   // 获取下一批未学习的单词（阶段1用）
   const getNextLearningBatch = useCallback(() => {
@@ -89,18 +104,28 @@ export const useWordSession = (allWords: Word[]) => {
 
   // 检查是否整个会话完成
   const isSessionComplete = useCallback(() => {
-    return wordProgress.every(p => p.level === 3);
+    return wordProgress.every(p => p.level === 4); // 改为4
   }, [wordProgress]);
+
+  // 获取拼写测试的单词（第4阶段）
+  const getSpellingWords = useCallback(() => {
+    return allWords.filter(word => {
+      const progress = wordProgress.find(p => p.id === word.id);
+      return progress?.level === 3; // 获取完成第3阶段的单词
+    });
+  }, [allWords, wordProgress]);
 
   return {
     wordProgress,
     getNextLearningBatch,
     getStageWords,
     getReviewWords,
+    getSpellingWords, // 添加到返回对象中
     updateWordProgress,
-    isStageComplete, // 添加这个
+    isStageComplete,
     isSessionComplete,
     currentStage,
     setCurrentStage,
+    getProgress,
   };
 };

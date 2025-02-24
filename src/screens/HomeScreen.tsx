@@ -18,6 +18,9 @@ const HomeScreen = () => {
     totalWords: words.length,
     learnedWords: learnedWords,
   };
+  const handleStartLearning = () => {
+    navigation.replace('Learning');
+  };
 
   return (
     <View style={styles.container}>
@@ -28,7 +31,7 @@ const HomeScreen = () => {
         </Text>
         <TouchableOpacity
           style={styles.learnButton}
-          onPress={() => navigation.navigate('Learning')}>
+          onPress={handleStartLearning}>
           <Text style={styles.buttonText}>开始学习</Text>
         </TouchableOpacity>
       </View>
